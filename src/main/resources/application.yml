@@ -1,0 +1,6 @@
+spring:
+  data:
+    mongodb:
+      uri: "mongodb://172.21.115.89:27017"
+      database: "test"
+spring.jackson.default-property-inclusion: NON_NULL
