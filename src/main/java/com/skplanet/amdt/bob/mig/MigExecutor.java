@@ -1,14 +1,11 @@
 package com.skplanet.amdt.bob.mig;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileReader;
-import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
 
 import org.apache.commons.lang3.StringUtils;
@@ -24,10 +21,77 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class MigExecutor {
 
+//    @Autowired
+//    private AddressRepository addressRepository;
+
     @Autowired
-    private AddressRepository addressRepository;
+    private AdministrativeAreaRepository administrativeAreaRepository;
 
     @PostConstruct
+    public void load1() {
+        List<Sgis> sgis = new ArrayList<>();
+        try (Reader reader = new BufferedReader(new FileReader("SGIS.csv"))) {
+            CsvToBean<Sgis> csvToBean = new CsvToBeanBuilder(reader)
+                .withType(Sgis.class)
+                .withIgnoreLeadingWhiteSpace(true)
+                .build();
+
+            sgis = csvToBean.parse();
+        } catch (Exception ex) {
+            log.error("Exception occurred at FileReader SGIS.csv, {}", ex);
+        }
+
+        List<AdministrativeArea> sdList = sgis.stream()
+            .map(e -> e.getSdcd() + "," + e.getSdname())
+            .distinct()
+            .map(str -> {
+                String[] split = StringUtils.split(str, ",");
+                return AdministrativeArea.builder()
+                    .id(split[0])
+                    .name(split[1])
+                    .type("sd")
+                    .build();
+            })
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<AdministrativeArea> sggList = sgis.stream()
+            .map(e -> e.getSggcd() + "," + e.getSggname() + "," + e.getSdcd() + "," + e.getSdname())
+            .distinct()
+            .map(str -> {
+                String[] split = StringUtils.split(str, ",");
+                return AdministrativeArea.builder()
+                    .id(split[0])
+                    .name(split[1])
+                    .sdId(split[2])
+                    .sdName(split[3])
+                    .type("sgg")
+                    .build();
+            })
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<AdministrativeArea> umdList = sgis.stream()
+            .map(e -> AdministrativeArea.builder()
+                .id(e.getUmdcd())
+                .name(e.getUmdname())
+                .sdId(e.getSdcd())
+                .sdName(e.getSdname())
+                .sggId(e.getSggcd())
+                .sggName(e.getSggname())
+                .type("umd")
+                .build())
+            .distinct()
+            .collect(Collectors.toList());
+
+        System.out.println();
+
+        administrativeAreaRepository.saveAll(sdList);
+        administrativeAreaRepository.saveAll(sggList);
+        administrativeAreaRepository.saveAll(umdList);
+    }
+
+    //    @PostConstruct
     public void load2() {
         List<Address> addresses = new ArrayList<>();
         List<CsvModel> csvModels = new ArrayList<>();
@@ -40,7 +104,7 @@ public class MigExecutor {
             csvModels = csvToBean.parse();
             System.out.println();
         } catch (Exception ex) {
-            log.error("Exception occurred at FileReader skhsm_0713.csv, {}", ex);
+            log.error("Exception occurred at FileReader SGIS.csv, {}", ex);
         }
 
         for (CsvModel csv : csvModels) {
@@ -79,7 +143,7 @@ public class MigExecutor {
             addresses.add(address);
         }
 
-        addressRepository.saveAll(addresses);
+//        addressRepository.saveAll(addresses);
     }
 
     private String getParentString(String full, String name) {
